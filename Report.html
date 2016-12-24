@@ -1,0 +1,496 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  	<meta charset="UTF-8">
+	<meta http-equiv="X-UA-Compatible" content="IE=edge">
+	<meta name="viewport" content="width=device-width, initial-scale=1">	
+	<meta name="Teacher Summary Report" content="Information on how teachers performed across evaluation variables">
+	<title>Teacher Summary Report</title>
+
+	<!-- Latest compiled and minified CSS -->
+	<link rel="stylesheet" href="http://maxcdn.bootstrapcdn.com/bootstrap/3.3.4/css/bootstrap.min.css">
+
+	<style type="text/css">
+		section {
+			padding-top: 120px;
+		}
+
+		canvas {
+			margin: auto;
+		}
+
+		.jumbotron {
+			background: #2ecc71;
+			color: #FFFAF0;
+		}
+	</style>
+	
+	<!-- Use Chart.js - JavaScript charting tool  -->
+	<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/2.4.0/Chart.min.js"></script>
+	<!-- Use jQuery and Papa Parse for parsing csv data to JavaScript  -->
+	<script src="https://ajax.googleapis.com/ajax/libs/jquery/3.1.1/jquery.min.js"></script>
+	<script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/4.1.2/papaparse.min.js"></script>
+</head>
+
+<body>
+	<header class="jumbotron">
+		<div class="container">
+			<h1>Teacher Summary Report</h1>
+			<h2>-- School --</h2>
+			<h3>-- Date Period --</h3>
+		</div>
+	</header>
+
+	<main>
+		<div class="container">
+			<!-- Load raw csv -->
+			<section>		
+				<!-- Input field to load raw csv file for parsing of data -->
+				<form class="form-inline">
+					<div class="form-group">
+						<label for="files">Upload a CSV formatted file:</label>
+						<input type="file" id="files" class="form-control" accept=".csv" required />
+					</div>
+					<div class="form-group">
+						<button type="submit" id="submit" class="btn btn-primary">Submit</button>
+					</div>
+				</form>
+                </div>
+			</section>
+
+			<!-- Sections for each of the graphs -->
+
+			<!-- MOTP Ratings Percentages -->
+			<section>
+				<div id="motprating"/>
+			</section>
+
+			<!-- MOSL State and Local Ratings -->
+			<section>
+				<div id="moslrating"/>
+			</section>
+
+			<!-- MOTP vs MOSL Ratings Percent -->
+			<section>
+				<div id="motpandmosl"/>
+			</section>
+
+			<!-- Top 5 Teachers -->
+			<section>
+				<div id="toprank"/>
+			</section>
+
+			<!-- Bottom 5 Teachers -->
+			<section>
+				<div id="bottomrank"/>
+			</section>
+
+			<!-- Raw Data -->
+			<section>
+				<div id="rawData"/>
+			</section>
+		</div>
+	</main>
+
+	<script>
+		// Avoid charts that are too large, turn off responsive
+		Chart.defaults.global.maintainAspectRatio = false;
+		Chart.defaults.global.responsive = false;
+
+		// Handle file upload
+		function handleFile(e) {
+			let file = e.target.files[0];
+
+			Papa.parse(file, {
+				header: true,
+				dynamicTyping: true,
+				complete: function(results) {
+					data = results;
+				}
+			});
+		}
+
+		$(document).ready(function(){
+			$("#csv-file").change(handleFile);
+		});
+
+		$('#submit').on("click",function(e){
+		    e.preventDefault();
+		 
+		    $('#files').parse({
+		        config: {
+		            delimiter: "auto",
+		            complete: buildReports,
+		        },
+			});
+		});
+
+		let MOTPRatings = [];
+		let MOSLStateRatings = [];
+		let MOSLLocalRatings = [];
+		let AllRatings = [];
+		let OverallRatings = [];
+
+		// Main function to build reports
+		function buildReports(results) {
+			parseCSV(results);
+			buildMOTPChart();			
+			buildMOSLChart();
+			buildMOTPMOSLChart();
+			buildTopOverallChart();
+			buildBottomOverallChart();
+			buildTable(results);
+		}
+
+		// Parse data from uploaded CVS
+		function parseCSV(results){
+		    let data = results.data;
+
+		    for(let i = 1; i < data.length; i++){
+		    	let ratings = {};
+		    	let overallRatings = {};
+		        let row = data[i].join(",").split(",");
+
+		        // Get classifications of MOTP and MOSL Ratings
+		        MOTPRatings.push(row[9]);
+		        MOSLStateRatings.push(row[11]);
+		        MOSLLocalRatings.push(row[13]);
+
+		        // Get values of MOTP ratings
+		        ratings['x'] = row[8];
+		        // Get values of MOSL - State and Local ratings
+		       	ratings['y'] = parseInt(row[10]) + parseInt(row[12]);
+		       	// Get value of Overall Rating
+		       	ratings['r'] = row[14]/10;
+				AllRatings.push(ratings);
+
+				// Info to rank teachers based on overall score
+				overallRatings['lastName'] = row[6]
+				overallRatings['overallScore'] = row[14]
+				OverallRatings.push(overallRatings);
+				
+		    }
+		}
+
+		// Grouping of individual MOSL and MOTP ratings into categories for charts
+		function groupRatings(ratings) {
+			let groupedRatings = {}
+		    for (let i = 0; i < ratings.length; i++) {
+		    	let rating = ratings[i];
+		        if (groupedRatings[rating]) {
+		            groupedRatings[rating]++;
+		        }
+		        else {
+		            groupedRatings[rating]=1;
+		        }
+		    }
+		    return(groupedRatings);
+		}
+
+		// Build MOTP chart to show percentages of teachers in each category
+		function buildMOTPChart() {
+			let groupedMOTPRatings = {}
+			let grouped_percentage = []
+			let sum = 0;
+			groupedMOTPRatings = groupRatings(MOTPRatings)
+
+			// Get total ratings
+			for (let i in groupedMOTPRatings)
+			{
+			    sum += parseInt(groupedMOTPRatings[i]);
+			}
+
+			// Calculate percentage in category
+			for (let i in groupedMOTPRatings)
+			{
+			    grouped_percentage.push((parseInt(groupedMOTPRatings[i]) / sum).toFixed(3) * 100);
+			}
+
+			let MOTP = "<canvas id='motp'></canvas>";
+			$("#motprating").append(MOTP);
+
+			let MOTPData = {
+				labels : Object.keys(groupedMOTPRatings),
+				datasets: [
+					{
+						backgroundColor: [
+							"#2ecc71",
+							"#3498db",
+							"#95a5a6",
+						],
+						data: grouped_percentage,
+					}
+				]
+			}
+
+			let motp_ctx = document.getElementById('motp').getContext('2d');
+			motp_ctx.canvas.width = 500;
+			motp_ctx.canvas.height = 400;
+		    let motpChart = new Chart(motp_ctx , {
+			    type: "doughnut",
+			    data: MOTPData, 
+			    options: {
+			    	title: {
+						display: true,
+						text: 'MOTP Ratings - Percentages'
+					},
+				  	cutoutPercentage: 10,
+				}
+			});
+		}
+
+		// Build chart to compare MOSL rating categories, local and state
+		function buildMOSLChart() {
+			let groupedMOSLStateRatings = {}
+			groupedMOSLStateRatings = groupRatings(MOSLStateRatings)
+
+			let groupedMOSLLocalRatings = {}
+			groupedMOSLLocalRatings = groupRatings(MOSLLocalRatings)
+
+			let MOSL = "<canvas id='mosl'></canvas>";
+			$("#moslrating").append(MOSL);
+
+			let MOSLData = {
+				labels : Object.keys(groupedMOSLStateRatings),
+				datasets : [
+					{
+						label: "State",
+			            fillColor: "rgba(220,220,220,0.2)",
+			            strokeColor: "rgba(220,220,220,1)",
+			            pointColor: "rgba(220,220,220,1)",
+			            pointStrokeColor: "#fff",
+			            pointHighlightFill: "#fff",
+			            pointHighlightStroke: "rgba(220,220,220,1)",
+						data : Object.values(groupedMOSLStateRatings),
+						backgroundColor: "#2ecc71"
+					},
+					{
+						label: "Local",
+			            fillColor: "rgba(220,220,220,0.2)",
+			            strokeColor: "rgba(220,220,220,1)",
+			            pointColor: "rgba(220,220,220,1)",
+			            pointStrokeColor: "#fff",
+			            pointHighlightFill: "#fff",
+			            pointHighlightStroke: "rgba(220,220,220,1)",
+						data : Object.values(groupedMOSLLocalRatings),
+						backgroundColor: "#3498db"
+					},
+				]
+			}
+
+			let mosl_ctx = document.getElementById('mosl').getContext('2d');
+			mosl_ctx.canvas.width = 500;
+			mosl_ctx.canvas.height = 400;
+		    let moslChart = new Chart(mosl_ctx , {
+			    type: "bar",
+			    data: MOSLData,
+			    options: {
+					title: {
+						display: true,
+						text: 'MOSL Ratings - Number of Teachers'
+					},
+				    scales: {
+				        yAxes: [{
+				            ticks: {
+				                beginAtZero: true
+				            }
+				        }]
+				    },
+				}
+			});
+		}
+
+		// Build bubble graph to compare correlation between MOSL and MOTP, with overall Score and third indicator
+		function buildMOTPMOSLChart() {
+			let MOTPMOSL = "<canvas id='motpmosl'></canvas>";
+			$("#motpandmosl").append(MOTPMOSL);
+			
+			let MOTPMOSLData = {
+				datasets: [
+		        {
+		            data: AllRatings,
+		            backgroundColor:"#FF6384",
+		            hoverBackgroundColor: "#FF6384",
+		        }]
+			}
+
+			let motpmosl_ctx = document.getElementById('motpmosl').getContext('2d');
+			motpmosl_ctx.canvas.width = 500;
+			motpmosl_ctx.canvas.height = 400;
+		    let moslChart = new Chart(motpmosl_ctx , {
+			   	type: "bubble",
+			    data: MOTPMOSLData,
+			    options: {
+			    	title: {
+						display: true,
+						text: 'MOTP vs. MOSL (State and Local) Ratings'
+					},
+				    elements: {
+			            points: {
+			                borderWidth: 1,
+			                borderColor: 'rgb(0, 0, 0)'
+			            }
+			        },
+			        legend: {
+			            display: false
+			        },
+				}
+			});
+		}
+
+		// Sort overall scores to rank teachers
+		function sortOverallScores(ratings) {
+			ranking = ratings.sort(function(a, b) {
+				return a.overallScore - b.overallScore
+			})
+			return(ranking);
+		}
+
+		// Build chart to view top teachers
+		function buildTopOverallChart() {
+			let teachers = [];
+			let overallScores = [];
+			let topOverallRatings = sortOverallScores(OverallRatings).slice(-5);	
+			for (let i = 0; i < topOverallRatings.length; i++) {
+				teachers.push(topOverallRatings[i]['lastName']);
+				overallScores.push(topOverallRatings[i]['overallScore']);
+			}
+
+			teachers = teachers.reverse();
+			overallScores = overallScores.reverse();
+
+			let top = "<canvas id='topOverall'></canvas>";
+			$("#toprank").append(top);
+			
+			let TopData = {
+				labels : teachers,
+				datasets : [
+					{
+			            fillColor: "rgba(220,220,220,0.2)",
+			            strokeColor: "rgba(220,220,220,1)",
+			            pointColor: "rgba(220,220,220,1)",
+			            pointStrokeColor: "#fff",
+			            pointHighlightFill: "#fff",
+			            pointHighlightStroke: "rgba(220,220,220,1)",
+						data : overallScores,
+						backgroundColor: [
+							"#2ecc71",
+							"#3498db",
+							"#95a5a6",
+							"#9b59b6",
+							"#f1c40f",
+						],
+					},
+				]
+			}
+
+			let top_ctx = document.getElementById('topOverall').getContext('2d');
+			top_ctx.canvas.width = 500;
+			top_ctx.canvas.height = 400;
+		    let TopOverall = new Chart(top_ctx , {
+			    type: "bar",
+			    data: TopData,
+			    options: {
+					title: {
+						display: true,
+						text: 'Top 5 Teachers - Overall Score'
+					},
+					legend: {
+			            display: false
+			         },
+				    scales: {
+				        yAxes: [{
+				            ticks: {
+				                beginAtZero: true
+				            }
+				        }]
+				    },
+				}
+			});
+		}
+
+		// Build chart to rank bottom teachers
+		function buildBottomOverallChart() {
+			let teachers = [];
+			let overallScores = [];
+			let bottomRanked = sortOverallScores(OverallRatings).slice(0, 5);	
+
+			for (let i = 0; i < bottomRanked.length; i++) {
+				teachers.push(bottomRanked[i]['lastName']);
+				overallScores.push(bottomRanked[i]['overallScore']);
+			}
+
+			let bottom = "<canvas id='bottomOverall'></canvas>";
+			$("#bottomrank").append(bottom);
+			
+			let BottomData = {
+				labels : teachers,
+				datasets : [
+					{
+			            fillColor: "rgba(220,220,220,0.2)",
+			            strokeColor: "rgba(220,220,220,1)",
+			            pointColor: "rgba(220,220,220,1)",
+			            pointStrokeColor: "#fff",
+			            pointHighlightFill: "#fff",
+			            pointHighlightStroke: "rgba(220,220,220,1)",
+						data : overallScores,
+						backgroundColor: [
+							"#2ecc71",
+							"#3498db",
+							"#95a5a6",
+							"#9b59b6",
+							"#f1c40f",
+						],
+					},
+				]
+			}
+
+			let bottom_ctx = document.getElementById('bottomOverall').getContext('2d');
+			bottom_ctx.canvas.width = 500;
+			bottom_ctx.canvas.height = 400;
+		    var BottomOverall = new Chart(bottom_ctx , {
+			    type: "bar",
+			    data: BottomData,
+				options: {
+					title: {
+						display: true,
+						text: 'Bottom 5 Teachers - Overall Score'
+					},
+					legend: {
+			            display: false
+			         },
+				    scales: {
+				        yAxes: [{
+				            ticks: {
+				                beginAtZero: true
+				            }
+				        }]
+				    },
+				}
+			});
+		}
+
+		// Build table to view raw data
+		function buildTable(results){
+		    let markup = "<table class='table'>";
+		    let data = results.data;
+		    
+		    for(let i = 0; i < data.length; i++){
+		        markup+= "<tr>";
+		        let cells = data[i].row.join(",").split(",");
+
+		        for(let j = 0; j < cells.length; j++){
+		            markup+= "<td>";
+		            markup+= cells[j];
+		            markup+= "</th>";
+		        }
+		        markup+= "</tr>"; 
+		    }
+		    markup+= "</table>";
+		    $("#rawData").html(markup);
+		}
+	</script>
+</body>
+</html>
+
